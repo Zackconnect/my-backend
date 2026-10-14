@@ -1,37 +1,39 @@
-const { getPool } = require('../db/mysql');
+const { getDb } = require('../db/mongodb');
+
+function toMessage(document) {
+    if (!document) return null;
+    const { _id, ...message } = document;
+    return { ...message, id: _id.toHexString() };
+}
 
 async function create(messageData) {
-    const pool = getPool();
-    const [result] = await pool.execute(
-        'INSERT INTO support_messages (name, phone, direction, text) VALUES (?, ?, ?, ?)',
-        [messageData.name, messageData.phone, messageData.direction, messageData.text]
-    );
-    return { id: result.insertId, ...messageData };
+    const db = await getDb();
+    const document = {
+        name: messageData.name,
+        phone: messageData.phone,
+        direction: messageData.direction,
+        text: messageData.text,
+        created_at: new Date(),
+        updated_at: new Date()
+    };
+    const result = await db.collection('support_messages').insertOne(document);
+    return { id: result.insertedId.toHexString(), ...messageData };
 }
 
 async function find(filter = {}) {
-    const pool = getPool();
-    let query = 'SELECT * FROM support_messages';
-    const params = [];
-    
-    if (filter.phone) {
-        query += ' WHERE phone = ?';
-        params.push(filter.phone);
-    }
-    
-    query += ' ORDER BY created_at ASC';
-    
-    const [rows] = await pool.execute(query, params);
-    return rows;
+    const db = await getDb();
+    const query = filter.phone ? { phone: filter.phone } : {};
+    const documents = await db.collection('support_messages')
+        .find(query)
+        .sort({ created_at: 1, _id: 1 })
+        .toArray();
+    return documents.map(toMessage);
 }
 
 async function findOne(filter) {
-    const pool = getPool();
-    const [rows] = await pool.execute(
-        'SELECT * FROM support_messages WHERE phone = ? ORDER BY created_at DESC LIMIT 1',
-        [filter.phone]
-    );
-    return rows.length > 0 ? rows[0] : null;
+    const db = await getDb();
+    return toMessage(await db.collection('support_messages')
+        .findOne({ phone: filter.phone }, { sort: { created_at: -1, _id: -1 } }));
 }
 
 module.exports = { create, find, findOne };

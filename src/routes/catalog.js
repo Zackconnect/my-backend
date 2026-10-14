@@ -55,7 +55,7 @@ router.post('/:category', authenticate, requireAdmin, async (request, response, 
         const item = await CatalogItem.create({ category: request.catalogCategory, itemId, data });
         return response.status(201).json({ item: { ...item.data, id: item.item_id } });
     } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY') {
+        if (error.code === 11000) {
             return response.status(409).json({ error: 'A record with those details already exists.' });
         }
         if (error.status === 400) return response.status(400).json({ error: error.message });
@@ -75,7 +75,7 @@ router.put('/:category/:id', authenticate, requireAdmin, async (request, respons
         if (!item) return response.status(404).json({ error: 'Catalog item not found.' });
         return response.json({ item: { ...item.data, id: item.item_id } });
     } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY') {
+        if (error.code === 11000) {
             return response.status(409).json({ error: 'A record with those details already exists.' });
         }
         return next(error);

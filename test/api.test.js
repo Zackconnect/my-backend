@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const { after, before, test } = require('node:test');
 const { createApp } = require('../src/app');
-const { disconnect } = require('../src/db/mysql');
+const { disconnect } = require('../src/db/mongodb');
 const { defaultBundles } = require('../src/data/defaultBundles');
 const vercelApp = require('../src/server');
 
@@ -30,10 +30,14 @@ test('health endpoint reports current database readiness', async () => {
     const health = await response.json();
     if (health.database === 'connected') {
         assert.equal(response.status, 200);
-        assert.deepEqual(health, { status: 'ok', database: 'connected' });
+        assert.deepEqual(health, { status: 'ok', database: 'connected', databaseType: 'mongodb' });
     } else {
         assert.equal(response.status, 503);
-        assert.deepEqual(health, { status: 'unavailable', database: 'disconnected' });
+        assert.deepEqual(health, {
+            status: 'unavailable',
+            database: 'disconnected',
+            databaseType: 'mongodb'
+        });
     }
 });
 
@@ -62,6 +66,16 @@ test('invalid enquiry input is rejected before database access', async () => {
     });
     assert.equal(response.status, 400);
     assert.deepEqual(await response.json(), { error: 'Name is required.' });
+});
+
+test('bundle orders require a bundle selection before database access', async () => {
+    const response = await fetch(`${baseUrl}/api/bundle-orders`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({})
+    });
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { error: 'Bundle is required.' });
 });
 
 test('unsupported catalog categories return 404', async () => {

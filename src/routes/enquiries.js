@@ -17,7 +17,7 @@ router.post('/', async (request, response, next) => {
         });
         return response.status(201).json({ enquiry });
     } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY') {
+        if (error.code === 11000) {
             return response.status(409).json({ error: 'A record with those details already exists.' });
         }
         return handleValidationError(error, response, next);

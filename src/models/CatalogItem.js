@@ -1,105 +1,94 @@
-const { getPool } = require('../db/mysql');
+const { getDb } = require('../db/mongodb');
+
+function toCatalogItem(document) {
+    if (!document) return null;
+    const { _id, ...item } = document;
+    return { ...item, id: _id.toHexString() };
+}
+
+function catalogDocument(itemData) {
+    return {
+        category: itemData.category,
+        item_id: itemData.itemId,
+        data: itemData.data,
+        bundle_network: itemData.category === 'bundles' ? itemData.data.network : null,
+        bundle_size: itemData.category === 'bundles' ? itemData.data.size : null,
+        created_at: new Date(),
+        updated_at: new Date()
+    };
+}
 
 async function create(itemData) {
-    const pool = getPool();
-    const [result] = await pool.execute(
-        `INSERT INTO catalog_items
-            (category, item_id, data, bundle_network, bundle_size)
-         VALUES (?, ?, ?, ?, ?)`,
-        [
-            itemData.category,
-            itemData.itemId,
-            JSON.stringify(itemData.data),
-            itemData.category === 'bundles' ? itemData.data.network : null,
-            itemData.category === 'bundles' ? itemData.data.size : null
-        ]
-    );
-    return { id: result.insertId, ...itemData };
+    const db = await getDb();
+    const document = catalogDocument(itemData);
+    const result = await db.collection('catalog_items').insertOne(document);
+    return { id: result.insertedId.toHexString(), ...itemData, item_id: itemData.itemId };
 }
 
 async function findByCategory(category) {
-    const pool = getPool();
-    const [rows] = await pool.execute(
-        'SELECT * FROM catalog_items WHERE category = ? ORDER BY created_at ASC',
-        [category]
-    );
-    return rows.map(row => ({
-        ...row,
-        data: typeof row.data === 'string' ? JSON.parse(row.data) : row.data
-    }));
+    const db = await getDb();
+    const documents = await db.collection('catalog_items')
+        .find({ category })
+        .sort({ created_at: 1, _id: 1 })
+        .toArray();
+    return documents.map(toCatalogItem);
+}
+
+async function findOneByItemId(category, itemId) {
+    const db = await getDb();
+    return toCatalogItem(await db.collection('catalog_items').findOne({ category, item_id: itemId }));
 }
 
 async function findOneAndUpdate(category, itemId, newData) {
-    const pool = getPool();
-    const [result] = await pool.execute(
-        `UPDATE catalog_items
-         SET data = ?, bundle_network = ?, bundle_size = ?
-         WHERE category = ? AND item_id = ?`,
-        [
-            JSON.stringify(newData),
-            category === 'bundles' ? newData.network : null,
-            category === 'bundles' ? newData.size : null,
-            category,
-            itemId
-        ]
+    const db = await getDb();
+    const collection = db.collection('catalog_items');
+    const result = await collection.findOneAndUpdate(
+        { category, item_id: itemId },
+        {
+            $set: {
+                data: newData,
+                bundle_network: category === 'bundles' ? newData.network : null,
+                bundle_size: category === 'bundles' ? newData.size : null,
+                updated_at: new Date()
+            }
+        },
+        { returnDocument: 'after' }
     );
-    if (result.affectedRows === 0) {
-        const [existing] = await pool.execute(
-            'SELECT id FROM catalog_items WHERE category = ? AND item_id = ? LIMIT 1',
-            [category, itemId]
-        );
-        if (!existing.length) return null;
-    }
-    const [rows] = await pool.execute(
-        'SELECT * FROM catalog_items WHERE category = ? AND item_id = ?',
-        [category, itemId]
-    );
-    return rows.length > 0
-        ? {
-            ...rows[0],
-            data: typeof rows[0].data === 'string' ? JSON.parse(rows[0].data) : rows[0].data
-        }
-        : null;
+    return toCatalogItem(result);
 }
 
 async function findOneAndDelete(category, itemId) {
-    const pool = getPool();
-    const [rows] = await pool.execute(
-        'SELECT * FROM catalog_items WHERE category = ? AND item_id = ?',
-        [category, itemId]
-    );
-    if (rows.length === 0) return null;
-    await pool.execute(
-        'DELETE FROM catalog_items WHERE category = ? AND item_id = ?',
-        [category, itemId]
-    );
-    return rows[0];
+    const db = await getDb();
+    const document = await db.collection('catalog_items').findOneAndDelete({ category, item_id: itemId });
+    return toCatalogItem(document);
 }
 
 async function exists(category) {
-    const pool = getPool();
-    const [rows] = await pool.execute(
-        'SELECT COUNT(*) as count FROM catalog_items WHERE category = ?',
-        [category]
-    );
-    return rows[0].count > 0;
+    const db = await getDb();
+    return (await db.collection('catalog_items').countDocuments({ category }, { limit: 1 })) > 0;
 }
 
 async function insertMany(items) {
-    const pool = getPool();
-    const values = items.map(item => [
-        item.category,
-        item.itemId,
-        JSON.stringify(item.data),
-        item.category === 'bundles' ? item.data.network : null,
-        item.category === 'bundles' ? item.data.size : null
-    ]);
-    await pool.query(
-        `INSERT INTO catalog_items
-            (category, item_id, data, bundle_network, bundle_size)
-         VALUES ?`,
-        [values]
-    );
+    if (items.length === 0) return;
+    const db = await getDb();
+    await db.collection('catalog_items').bulkWrite(items.map((item) => {
+        const document = catalogDocument(item);
+        return {
+            updateOne: {
+                filter: { category: document.category, item_id: document.item_id },
+                update: { $setOnInsert: document },
+                upsert: true
+            }
+        };
+    }));
 }
 
-module.exports = { create, findByCategory, findOneAndUpdate, findOneAndDelete, exists, insertMany };
+module.exports = {
+    create,
+    findByCategory,
+    findOneByItemId,
+    findOneAndUpdate,
+    findOneAndDelete,
+    exists,
+    insertMany
+};

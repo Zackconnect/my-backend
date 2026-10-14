@@ -1,27 +1,27 @@
 # Zackconnect Node.js backend
 
-REST API for the static Zackconnect website. The API uses Express and MySQL and can serve the frontend from the sibling `my-webapp` folder.
+REST API for the static Zackconnect website. The API uses Express and MongoDB and can serve the frontend from the sibling `my-webapp` folder.
 
 ## Requirements
 
 - Node.js 20 or later
-- A MySQL 8.0+ server (local or hosted)
+- A MongoDB 6.0+ server (local or hosted)
 
 ## Run locally
 
-1. Create a MySQL database, for example: `CREATE DATABASE zackconnect CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`.
-2. Copy `.env.example` to `.env` and set `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`, and a random `JWT_SECRET` of at least 32 characters. Keep `.env` private.
+1. Create a MongoDB database, either locally or with a hosted provider such as MongoDB Atlas.
+2. Copy `.env.example` to `.env` and set `MONGODB_URI`, optionally `MONGODB_DATABASE`, and a random `JWT_SECRET` of at least 32 characters. Keep `.env` private.
 3. Run `npm install`, then `npm run dev`.
 4. Open `http://localhost:3000/` (or `/login.html` or `/signup.html`). The backend serves the sibling frontend on the same origin, so do not open the HTML directly with `file://`.
 5. The API is available at `http://localhost:3000/api`; check `GET /api/health` for database readiness.
 
-Do not commit `.env`. The backend creates its MySQL tables at startup and fails if MySQL is unavailable or the signing secret is missing or invalid. Set `CLIENT_STATIC_DIR` if the frontend is not in the sibling `my-webapp` folder.
+Do not commit `.env`. At startup the backend verifies the MongoDB connection, creates required indexes, and seeds the default bundle catalog if it is empty. Startup fails if MongoDB is unavailable, `MONGODB_URI` is missing, or the signing secret is missing or invalid. Set `CLIENT_STATIC_DIR` if the frontend is not in the sibling `my-webapp` folder.
 
 ## Deploy the API to Vercel
 
 The Express API can be deployed as a Vercel Function from this repository. Import the backend repository into Vercel with the repository root as the project root; Vercel detects `src/server.js` as the Express entry point. The separate static frontend project remains hosted independently, since Vercel Functions do not serve this app's `express.static()` files.
 
-In the Vercel backend project's environment settings, configure `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`, and a new `JWT_SECRET` of at least 32 characters. Use a hosted MySQL database reachable over the network; `localhost` and `127.0.0.1` refer to the function environment, not a developer computer. Also set `CLIENT_ORIGIN` to the exact frontend origin, for example `https://my-webapp-khaki.vercel.app`, and optionally `JWT_EXPIRES_IN=7d`. Do not set `CLIENT_STATIC_DIR` or `PORT` for the Vercel deployment.
+In the Vercel backend project's environment settings, configure `MONGODB_URI` and a new `JWT_SECRET` of at least 32 characters. Optionally set `MONGODB_DATABASE` if the URI does not select the database. Use a hosted MongoDB database reachable over the network; `localhost` and `127.0.0.1` refer to the function environment, not a developer computer. Configure the provider's network access to permit the Vercel function to connect, and use a strong database password. Also set `CLIENT_ORIGIN` to the exact frontend origin, for example `https://my-webapp-khaki.vercel.app`, and optionally `JWT_EXPIRES_IN=7d`. Do not set `CLIENT_STATIC_DIR` or `PORT` for the Vercel deployment.
 
 After deploying the API, point the frontend's `window.ZACKCONNECT_API_URL` at the API deployment URL followed by `/api`, then redeploy the frontend. For local development, run `npm run dev` as usual.
 
@@ -41,7 +41,7 @@ All JSON request and response bodies use `application/json`. Authenticated route
 
 | Method | Path | Access | Purpose |
 | --- | --- | --- | --- |
-| GET | `/api/health` | Public | API and MySQL readiness |
+| GET | `/api/health` | Public | API and MongoDB readiness |
 | POST | `/api/auth/register` | Public | Create customer account (`name`, `email`, `phone`, `password`) |
 | POST | `/api/auth/login` | Public | Sign in (`email`, `password`) |
 | GET | `/api/auth/me` | Signed in | Get current account |
@@ -49,6 +49,8 @@ All JSON request and response bodies use `application/json`. Authenticated route
 | POST | `/api/catalog/:category` | Admin | Create `{ "item": { "id": "...", ... } }` |
 | PUT | `/api/catalog/:category/:id` | Admin | Replace a catalog item |
 | DELETE | `/api/catalog/:category/:id` | Admin | Delete a catalog item |
+| POST | `/api/bundle-orders` | Public | Record a guest bundle order as `Pending payment`; does not charge |
+| GET | `/api/bundle-orders` | Admin | View bundle order history |
 | POST | `/api/enquiries` | Public | Submit `name`, `phone`, `email`, `service`, `message` |
 | GET | `/api/enquiries` | Admin | List enquiries |
 | PATCH | `/api/enquiries/:id/status` | Admin | Set status to `Pending`, `In Progress`, or `Completed` |
@@ -58,6 +60,6 @@ All JSON request and response bodies use `application/json`. Authenticated route
 | GET | `/api/support/messages?phone=...` | Admin | List support messages, optionally for one phone |
 | POST | `/api/support/messages/:phone/reply` | Admin | Send a reply with `text` |
 
-The API persists data in MySQL. On first startup, it seeds the 36 default bundle offers used by the website if the bundle catalog is empty. The Data Bundles page reads prices from this catalog, and the admin bundle editor creates, updates, and deletes shared catalog records through the API. The frontend uses `http://localhost:3000/api` by default; set `window.ZACKCONNECT_API_URL` before `script.js` when the API is hosted elsewhere.
+The API persists accounts, catalog items (including data bundles), bundle order attempts, enquiries, software project requests, and support messages in MongoDB collections. Bundle checkout records orders as `Pending payment` only; no payment is collected and no order is marked paid. On first startup, it seeds the 36 default bundle offers if the bundle catalog is empty. Existing MySQL records are not copied automatically; migrate/export them separately before switching if they need to be retained. The Data Bundles page reads prices from this catalog, and the admin bundle editor creates, updates, and deletes shared catalog records through the API. The frontend uses `http://localhost:3000/api` by default; set `window.ZACKCONNECT_API_URL` before `script.js` when the API is hosted elsewhere.
 
 Bundle checkout is not yet connected to a payment provider: clicking Pay does not charge a customer or create a paid order. The payment-reference and tracking controls on the page also need payment/order APIs and provider credentials before they can work. Uploaded file bytes are not stored by this API: project brief metadata can be submitted, but the existing browser-only IndexedDB media upload must be migrated to a server-side file store separately.

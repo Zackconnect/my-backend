@@ -2,7 +2,7 @@
   "name": "zackconnect-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Node.js and MySQL API for the Zackconnect website",
+  "description": "Node.js and MongoDB API for the Zackconnect website",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -21,6 +21,6 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
-    "mysql2": "^3.11.0"
+    "mongodb": "^7.7.0"
   }
 }

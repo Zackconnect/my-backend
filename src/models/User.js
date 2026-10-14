@@ -1,39 +1,58 @@
-const { getPool } = require('../db/mysql');
+const { getDb, toObjectId } = require('../db/mongodb');
+
+function toUser(document) {
+    if (!document) return null;
+    const { _id, ...user } = document;
+    return { ...user, id: _id.toHexString() };
+}
 
 async function create(userData) {
-    const pool = getPool();
-    const [result] = await pool.execute(
-        'INSERT INTO users (name, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?)',
-        [userData.name, userData.email.toLowerCase(), userData.phone, userData.passwordHash, userData.role || 'customer']
-    );
-    return { id: result.insertId, ...userData };
+    const db = await getDb();
+    const user = {
+        name: userData.name,
+        email: userData.email.toLowerCase(),
+        phone: userData.phone,
+        password_hash: userData.passwordHash,
+        role: userData.role || 'customer',
+        created_at: new Date(),
+        updated_at: new Date()
+    };
+    const result = await db.collection('users').insertOne(user);
+    return { id: result.insertedId.toHexString(), ...userData };
 }
 
 async function findOneByEmail(email) {
-    const pool = getPool();
-    const [rows] = await pool.execute(
-        'SELECT * FROM users WHERE email = ?',
-        [email.toLowerCase()]
-    );
-    return rows.length > 0 ? rows[0] : null;
+    const db = await getDb();
+    return toUser(await db.collection('users').findOne({ email: email.toLowerCase() }));
 }
 
 async function findById(id) {
-    const pool = getPool();
-    const [rows] = await pool.execute(
-        'SELECT id, name, email, phone, role FROM users WHERE id = ?',
-        [id]
+    const objectId = toObjectId(id);
+    if (!objectId) return null;
+    const db = await getDb();
+    const user = await db.collection('users').findOne(
+        { _id: objectId },
+        { projection: { password_hash: 0 } }
     );
-    return rows.length > 0 ? rows[0] : null;
+    return toUser(user);
 }
 
 async function findByIdWithPassword(id) {
-    const pool = getPool();
-    const [rows] = await pool.execute(
-        'SELECT * FROM users WHERE id = ?',
-        [id]
-    );
-    return rows.length > 0 ? rows[0] : null;
+    const objectId = toObjectId(id);
+    if (!objectId) return null;
+    const db = await getDb();
+    return toUser(await db.collection('users').findOne({ _id: objectId }));
 }
 
-module.exports = { create, findOneByEmail, findById, findByIdWithPassword };
+async function updateAdminCredentials(id, passwordHash) {
+    const objectId = toObjectId(id);
+    if (!objectId) return false;
+    const db = await getDb();
+    const result = await db.collection('users').updateOne(
+        { _id: objectId },
+        { $set: { role: 'admin', password_hash: passwordHash, updated_at: new Date() } }
+    );
+    return result.matchedCount > 0;
+}
+
+module.exports = { create, findOneByEmail, findById, findByIdWithPassword, updateAdminCredentials };

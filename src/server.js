@@ -1,10 +1,10 @@
 require('dotenv').config();
-const { connect, disconnect, initializeSchema } = require('./db/mysql');
+const { connect, disconnect, initializeSchema } = require('./db/mongodb');
 const { seedDefaultBundles } = require('./data/defaultBundles');
 const { createApp } = require('./app');
 
 async function initialize() {
-    const requiredEnvironment = ['MYSQL_HOST', 'MYSQL_USER', 'MYSQL_DATABASE', 'JWT_SECRET'];
+    const requiredEnvironment = ['MONGODB_URI', 'JWT_SECRET'];
     const missingEnvironment = requiredEnvironment.filter(name => !process.env[name]);
     if (missingEnvironment.length) {
         throw new Error(`Missing required environment variables: ${missingEnvironment.join(', ')}`);

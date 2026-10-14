@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const path = require('node:path');
 const rateLimit = require('express-rate-limit');
 const authRoutes = require('./routes/auth');
+const bundleOrderRoutes = require('./routes/bundleOrders');
 const catalogRoutes = require('./routes/catalog');
 const enquiryRoutes = require('./routes/enquiries');
 const projectRoutes = require('./routes/projects');
@@ -43,22 +44,26 @@ function createApp({ beforeRequest } = {}) {
 
     app.get('/api/health', async (_request, response) => {
         try {
-            const { getPool } = require('./db/mysql');
-            const pool = getPool();
-            await pool.execute('SELECT 1');
+            if (beforeRequest) await beforeRequest();
+            const { getDb } = require('./db/mongodb');
+            const db = await getDb();
+            await db.command({ ping: 1 });
             response.json({
                 status: 'ok',
-                database: 'connected'
+                database: 'connected',
+                databaseType: 'mongodb'
             });
         } catch (error) {
-            console.error('MySQL health check failed:', error.message);
+            console.error('MongoDB health check failed:', error.message);
             response.status(503).json({
                 status: 'unavailable',
-                database: 'disconnected'
+                database: 'disconnected',
+                databaseType: 'mongodb'
             });
         }
     });
     app.use('/api/auth', authRoutes);
+    app.use('/api/bundle-orders', bundleOrderRoutes);
     app.use('/api/catalog', catalogRoutes);
     app.use('/api/enquiries', enquiryRoutes);
     app.use('/api/projects', projectRoutes);
@@ -74,7 +79,7 @@ function createApp({ beforeRequest } = {}) {
         if (error.type === 'entity.parse.failed') {
             return response.status(400).json({ error: 'Request body must contain valid JSON.' });
         }
-        if (error.code === 'ER_DUP_ENTRY') {
+        if (error.code === 11000) {
             return response.status(409).json({ error: 'A record with those details already exists.' });
         }
         if (error.name === 'ValidationError' || error.name === 'CastError') {

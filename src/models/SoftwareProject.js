@@ -1,20 +1,32 @@
-const { getPool } = require('../db/mysql');
+const { getDb } = require('../db/mongodb');
+
+function toProject(document) {
+    if (!document) return null;
+    const { _id, ...project } = document;
+    return { ...project, id: _id.toHexString() };
+}
 
 async function create(projectData) {
-    const pool = getPool();
-    const [result] = await pool.execute(
-        'INSERT INTO software_projects (name, email, phone, project_name, description, brief_name, brief_media_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [projectData.name, projectData.email.toLowerCase(), projectData.phone, projectData.projectName, projectData.description, projectData.briefName || '', projectData.briefMediaId || '']
-    );
-    return { id: result.insertId, ...projectData };
+    const db = await getDb();
+    const document = {
+        name: projectData.name,
+        email: projectData.email.toLowerCase(),
+        phone: projectData.phone,
+        project_name: projectData.projectName,
+        description: projectData.description,
+        brief_name: projectData.briefName || '',
+        brief_media_id: projectData.briefMediaId || '',
+        created_at: new Date(),
+        updated_at: new Date()
+    };
+    const result = await db.collection('software_projects').insertOne(document);
+    return { id: result.insertedId.toHexString(), ...projectData };
 }
 
 async function findAll() {
-    const pool = getPool();
-    const [rows] = await pool.execute(
-        'SELECT * FROM software_projects ORDER BY created_at DESC'
-    );
-    return rows;
+    const db = await getDb();
+    const documents = await db.collection('software_projects').find().sort({ created_at: -1, _id: -1 }).toArray();
+    return documents.map(toProject);
 }
 
 module.exports = { create, findAll };
