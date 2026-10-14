@@ -3,6 +3,7 @@ const { after, before, test } = require('node:test');
 const { createApp } = require('../src/app');
 const { disconnect } = require('../src/db/mysql');
 const { defaultBundles } = require('../src/data/defaultBundles');
+const vercelApp = require('../src/server');
 
 let server;
 let baseUrl;
@@ -40,6 +41,11 @@ test('frontend sign-in page is served over HTTP', async () => {
     const response = await fetch(`${baseUrl}/login.html`);
     assert.equal(response.status, 200);
     assert.match(await response.text(), /<title>Login - Zackconnect<\/title>/);
+});
+
+test('server entry exports an Express app for Vercel', () => {
+    assert.equal(typeof vercelApp, 'function');
+    assert.equal(typeof vercelApp.listen, 'function');
 });
 
 test('unknown API routes return a JSON 404', async () => {

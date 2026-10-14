@@ -9,7 +9,7 @@ const enquiryRoutes = require('./routes/enquiries');
 const projectRoutes = require('./routes/projects');
 const supportRoutes = require('./routes/support');
 
-function createApp() {
+function createApp({ beforeRequest } = {}) {
     const app = express();
 
     app.disable('x-powered-by');
@@ -20,6 +20,14 @@ function createApp() {
             : '*'
     }));
     app.use(express.json({ limit: '1mb' }));
+    if (beforeRequest) {
+        app.use((request, _response, next) => {
+            if (request.path === '/api/health') return next();
+            Promise.resolve()
+                .then(beforeRequest)
+                .then(() => next(), next);
+        });
+    }
     app.use('/api/auth', rateLimit({
         windowMs: 15 * 60 * 1000,
         limit: 20,

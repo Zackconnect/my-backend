@@ -17,6 +17,14 @@ REST API for the static Zackconnect website. The API uses Express and MySQL and 
 
 Do not commit `.env`. The backend creates its MySQL tables at startup and fails if MySQL is unavailable or the signing secret is missing or invalid. Set `CLIENT_STATIC_DIR` if the frontend is not in the sibling `my-webapp` folder.
 
+## Deploy the API to Vercel
+
+The Express API can be deployed as a Vercel Function from this repository. Import the backend repository into Vercel with the repository root as the project root; Vercel detects `src/server.js` as the Express entry point. The separate static frontend project remains hosted independently, since Vercel Functions do not serve this app's `express.static()` files.
+
+In the Vercel backend project's environment settings, configure `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`, and a new `JWT_SECRET` of at least 32 characters. Use a hosted MySQL database reachable over the network; `localhost` and `127.0.0.1` refer to the function environment, not a developer computer. Also set `CLIENT_ORIGIN` to the exact frontend origin, for example `https://my-webapp-khaki.vercel.app`, and optionally `JWT_EXPIRES_IN=7d`. Do not set `CLIENT_STATIC_DIR` or `PORT` for the Vercel deployment.
+
+After deploying the API, point the frontend's `window.ZACKCONNECT_API_URL` at the API deployment URL followed by `/api`, then redeploy the frontend. For local development, run `npm run dev` as usual.
+
 ## Create an administrator
 
 Register the admin account through `POST /api/auth/register`, then promote it and set its administrator password:
