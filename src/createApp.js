@@ -10,8 +10,7 @@ const enquiryRoutes = require('./routes/enquiries');
 const projectRoutes = require('./routes/projects');
 const supportRoutes = require('./routes/support');
 
-function createApp({ beforeRequest } = {}) {
-    const app = express();
+function createApp({ beforeRequest, app = express() } = {}) {
 
     app.disable('x-powered-by');
     app.use(helmet());

@@ -1,4 +1,5 @@
 require('dotenv').config();
+const express = require('express');
 const { connect, disconnect, initializeSchema } = require('./db/mongodb');
 const { seedDefaultBundles } = require('./data/defaultBundles');
 const { createApp } = require('./createApp');
@@ -29,7 +30,7 @@ function initializeOnce() {
     return initializationPromise;
 }
 
-const app = createApp({ beforeRequest: initializeOnce });
+const app = createApp({ beforeRequest: initializeOnce, app: express() });
 
 async function startLocal() {
     const port = Number(process.env.PORT || 3000);
