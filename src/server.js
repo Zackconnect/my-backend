@@ -1,7 +1,7 @@
 require('dotenv').config();
 const { connect, disconnect, initializeSchema } = require('./db/mongodb');
 const { seedDefaultBundles } = require('./data/defaultBundles');
-const { createApp } = require('./app');
+const { createApp } = require('./createApp');
 
 async function initialize() {
     const requiredEnvironment = ['MONGODB_URI', 'JWT_SECRET'];

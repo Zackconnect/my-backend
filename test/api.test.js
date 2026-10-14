@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const { after, before, test } = require('node:test');
-const { createApp } = require('../src/app');
+const { createApp } = require('../src/createApp');
 const { disconnect } = require('../src/db/mongodb');
 const { defaultBundles } = require('../src/data/defaultBundles');
 const vercelApp = require('../src/server');
